@@ -1,5 +1,6 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:buscarcep/app/services/models/address.dart';
+import 'package:buscarcep/app/services/repository/address_repository.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 class BuscarCep extends StatefulWidget {
@@ -8,70 +9,83 @@ class BuscarCep extends StatefulWidget {
 }
 
 class _BuscarCepState extends State<BuscarCep> {
-  var request = 'https://cep.awesomeapi.com.br/json/';
-  var response;
-  var cep = TextEditingController();
-  Map map = Map();
-  var result;
+  final _addressRepository = AddressRepository(Dio());
+  AddressModel response;
+  var cepController = TextEditingController();
+  bool isLoading = false;
+  bool isNotFoundCep = false;
 
-  @override
-  void initState() {
-    super.initState();
-    getCep();
-  }
-
-  getCep() async {
-    response = await http.get(request + cep.text ?? '');
+  void getCep() {
     setState(() {
-      map = jsonDecode(response.body ?? '');
+      isLoading = true;
     });
-
-    print(map);
+    _addressRepository.findById(cepController.text).then(
+      (value) {
+        setState(
+          () {
+            response = value;
+            isLoading = false;
+            isNotFoundCep = false;
+          },
+        );
+      },
+    ).catchError(
+      (e) => setState(
+        () {
+          isLoading = false;
+          isNotFoundCep = true;
+        },
+      ),
+    );
   }
 
-  Widget wid() {
-    if ((map.containsKey('info')) || (map == null)) {
-      return SizedBox(
-        height: 20,
+  Widget responseWidget() {
+    if (isLoading && response == null) {
+      return Center(
+        child: CircularProgressIndicator(),
       );
     }
-    if (map.containsKey('status')) {
+    if (isNotFoundCep) {
       return Text(
         "CEP não encontrado!",
         style: TextStyle(
           fontSize: 20,
         ),
       );
-    } else {
-      return Column(
-        children: <Widget>[
-          Text(
-            "Bairro: ${map['district']}",
-            style: TextStyle(
-              fontSize: 20,
-            ),
-          ),
-          Text(
-            "Endereço: ${map['address']}",
-            style: TextStyle(
-              fontSize: 20,
-            ),
-          ),
-          Text(
-            "Cidade: ${map['city']} - ${map['state']}",
-            style: TextStyle(
-              fontSize: 20,
-            ),
-          ),
-        ],
+    }
+    if (response == null) {
+      return SizedBox(
+        height: 20,
       );
     }
+
+    return Column(
+      children: <Widget>[
+        Text(
+          "Bairro: ${response.district}",
+          style: TextStyle(
+            fontSize: 20,
+          ),
+        ),
+        Text(
+          "Endereço: ${response.address}",
+          style: TextStyle(
+            fontSize: 20,
+          ),
+        ),
+        Text(
+          "Cidade: ${response.city} - ${response.state}",
+          style: TextStyle(
+            fontSize: 20,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(),
       body: SingleChildScrollView(
         child: SafeArea(
           minimum: EdgeInsets.all(10),
@@ -99,15 +113,13 @@ class _BuscarCepState extends State<BuscarCep> {
                   Divider(
                     color: Colors.transparent,
                   ),
-                  // customTF(cep, 'CEP'),
                   TextFormField(
                     maxLength: 8,
                     maxLengthEnforced: true,
                     cursorColor: Colors.green,
-                    controller: cep,
-                    onChanged: (str) => getCep(),
-                    onFieldSubmitted: (str) => getCep(),
-                    // onEditingComplete: () => getCep(),
+                    controller: cepController,
+                    // onChanged: (_) => getCep(),
+                    onFieldSubmitted: (_) => getCep(),
                     keyboardType: TextInputType.numberWithOptions(
                       decimal: false,
                       signed: false,
@@ -128,7 +140,7 @@ class _BuscarCepState extends State<BuscarCep> {
                   Divider(
                     color: Colors.transparent,
                   ),
-                  wid(),
+                  responseWidget(),
                   Divider(
                     color: Colors.transparent,
                     height: 50,
@@ -139,7 +151,7 @@ class _BuscarCepState extends State<BuscarCep> {
                     ),
                     padding: EdgeInsets.all(15),
                     color: Colors.lightGreen,
-                    onPressed: () async => await getCep(),
+                    onPressed: getCep,
                     child: Text(
                       'Buscar',
                       style: TextStyle(
